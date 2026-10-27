@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "TripleA IPTV Player",
+      "hasCanvas": false,
+      "bodyTextLen": 736,
+      "bodyTextHash": "aeb740cfb6bfc3000a0ac1c37c0371c060482e7aa8f8af8e41e0f69eed584685",
+      "bodyTextPrefix": "TripleA IPTV Player TS VLC HLS Web Guide Channels Categories Liv",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "TripleA IPTV Player",
+      "hasCanvas": false,
+      "bodyTextLen": 1385,
+      "bodyTextHash": "de77315f89bf5b8f5691937f7796f29fc21ae9038c4f02f3c6b9f91adb6d9697",
+      "bodyTextPrefix": "TripleA IPTV Player TS VLC HLS Web Guide Channels Categories Win",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

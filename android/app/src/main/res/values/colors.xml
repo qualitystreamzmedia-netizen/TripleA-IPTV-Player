@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#E7E4F6</color>
+    <color name="watch_bg">#10162A</color>
+    <color name="panel">#171E33</color>
+    <color name="panel_2">#222A44</color>
+    <color name="text">#F4F7FB</color>
+    <color name="text_dark">#1B2344</color>
+    <color name="muted">#667089</color>
+    <color name="focus">#2F6BFF</color>
+    <color name="line">#6428C4</color>
+    <color name="accent">#2F6BFF</color>
+    <color name="live">#E0232C</color>
+    <color name="green">#14804A</color>
+    <color name="purple">#7A3FF0</color>
+    <color name="frame">#6428C4</color>
+</resources>

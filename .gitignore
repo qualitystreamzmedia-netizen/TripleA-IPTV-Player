@@ -1,0 +1,16 @@
+node_modules/
+.project_id
+.github_repo
+.env
+.env.*
+.vercel/
+artifacts/
+attachments/
+vendor/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/triplea.keystore
+*.exe
+

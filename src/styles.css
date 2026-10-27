@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-bg: #e7e4f6;
+  --color-panel: #ffffff;
+  --color-panel-2: #f3f0fb;
+  --color-line: #d4cee8;
+  --color-fg: #1b2344;
+  --color-muted: #667089;
+  --color-accent: #2f6bff;
+  --color-live: #e0232c;
+  --radius-ui: 0.65rem;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: linear-gradient(115deg, #ece8f8 0%, #e4e9fb 46%, #d9eef8 100%);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  [role="checkbox"] {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  [data-zone] :focus-visible,
+  [data-zone] .tv-on {
+    outline: 3px solid #ffe08a;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.72);
+    position: relative;
+    z-index: 3;
+  }
+
+  input[type="range"].volume-bar {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 0.75rem;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type="range"].volume-bar::-webkit-slider-runnable-track {
+    height: 0.3rem;
+    border-radius: 999px;
+    background: #c9c0e0;
+  }
+
+  input[type="range"].volume-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    margin-top: -0.28rem;
+    border-radius: 999px;
+    background: #2f6bff;
+  }
+
+  input[type="range"].volume-bar::-moz-range-track {
+    height: 0.3rem;
+    border: none;
+    border-radius: 999px;
+    background: #c9c0e0;
+  }
+
+  input[type="range"].volume-bar::-moz-range-thumb {
+    width: 0.85rem;
+    height: 0.85rem;
+    border: none;
+    border-radius: 999px;
+    background: #2f6bff;
+  }
+
+  .stage-dark {
+    --color-bg: #10162a;
+    --color-panel: #171e33;
+    --color-panel-2: #222a44;
+    --color-line: #313b5c;
+    --color-fg: #f4f7fb;
+    --color-muted: #9aa6c3;
+    --color-accent: #2f6bff;
+    --color-live: #e0232c;
+    background: #10162a;
+    color: #f4f7fb;
+  }
+
+  html.dark {
+    --color-bg: #10162a;
+    --color-panel: #171e33;
+    --color-panel-2: #222a44;
+    --color-line: #313b5c;
+    --color-fg: #f4f7fb;
+    --color-muted: #9aa6c3;
+    color-scheme: dark;
+  }
+
+  html.dark body {
+    background: #0c1222;
+    color: #f4f7fb;
+  }
+
+  html.dark input[type="range"].volume-bar::-webkit-slider-runnable-track,
+  html.dark input[type="range"].volume-bar::-moz-range-track {
+    background: #313b5c;
+  }
+
+  .panel-frame {
+    border: 1px solid #6428c4;
+  }
+
+  .cinema-screen {
+    border: 1px solid #6428c4;
+    border-radius: 0;
+  }
+
+  video::cue {
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  input[type="range"].volume-bar.volume-up {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 1.75rem;
+    height: 4.25rem;
+  }
+}
+
+/* Unlayered so these beat utilities that bake in the light colors. */
+html.dark .channel-list {
+  background-color: #12182c;
+}
+
+html.dark .channel-list .channel-on {
+  background-color: #2f6bff;
+  color: #fff;
+}
+
+html.dark .channel-list .channel-on span,
+html.dark .channel-list .channel-on svg {
+  color: #fff;
+}
+
+html.dark .channel-list .channel-on svg[class*="fill-"] {
+  color: #f0d78c;
+  fill: #f0d78c;
+}
+
+html.dark .bg-bg\/95 {
+  background-color: rgb(16 22 42 / 95%);
+}
+
+html.dark .bg-bg\/70 {
+  background-color: rgb(16 22 42 / 70%);
+}
+
+html.dark .bg-bg\/40 {
+  background-color: rgb(16 22 42 / 40%);
+}
+
+html.dark .bg-panel\/90 {
+  background-color: rgb(23 30 51 / 90%);
+}
+
+html.dark .bg-panel\/80 {
+  background-color: rgb(23 30 51 / 80%);
+}

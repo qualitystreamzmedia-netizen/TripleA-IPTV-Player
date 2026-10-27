@@ -1,0 +1,208 @@
+// The dedicated Worker that owns the wasm instance. The page talks to it with
+// {id, method, args} messages (see VLC._rpc in index.js); frames and audio never pass
+// through here — the page reads them straight out of shared wasm memory.
+import createDefaultModule from '../wasm/libvlc.js';
+import { createEngine, EVENT } from './engine.js';
+
+let engine = null;
+let FS = null;
+let mountSeq = 0;
+const mounts = new Map(); // mrl -> mountpoint, released with the source
+
+const post = (msg, transfer) => self.postMessage(msg, transfer ?? []);
+
+function onEvent(player, type, a, b, str) {
+  post({ type: 'event', player, event: type, a, b, str });
+}
+
+/**
+ * A name that stays inside the directory it is created in: no separators, no
+ * "." or "..", no control characters. The extension survives, since VLC picks
+ * demuxers by it.
+ */
+function safeName(name, fallback) {
+  const base = String(name ?? '').split(/[/\\]/).pop().replace(/[\x00-\x1f\x7f]/g, '_');
+  return base && base !== '.' && base !== '..' ? base : fallback;
+}
+
+/** A File under a safe name; rewrapping a File references its data, it does not copy it. */
+function safeFile(f, fallback) {
+  const name = safeName(f.name, fallback);
+  return name === f.name ? f : new File([f], name, { type: f.type, lastModified: f.lastModified });
+}
+
+/**
+ * Makes any supported source reachable by VLC and returns its MRL.
+ * File/Blob are mounted with WORKERFS: VLC reads them lazily through
+ * FileReaderSync, so a 4 GB file costs no memory up front. Bytes go into
+ * MEMFS. http(s) is mapped onto an Emscripten lazy file (synchronous ranged
+ * XHR from this worker), because a browser gives VLC no sockets; blob: and
+ * data: URLs are read into a Blob here. Any other scheme would reach VLC as a
+ * raw MRL (its own access modules, other paths in this filesystem), so it is
+ * refused.
+ */
+async function toMrl(src) {
+  if (typeof src === 'string') {
+    let url;
+    try { url = new URL(src); } catch { throw new Error(`not a URL: ${src}`); }
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      const dir = `/url/${++mountSeq}`;
+      FS.mkdirTree(dir);
+      let last = url.pathname.split('/').pop();
+      try { last = decodeURIComponent(last); } catch { /* malformed escape: keep it raw */ }
+      const name = safeName(last, 'stream');
+      FS.createLazyFile(dir, name, src, true, false);
+      const mrl = `file://${dir}/${encodeURIComponent(name)}`;
+      mounts.set(mrl, { dir, kind: 'lazy', path: `${dir}/${name}` });
+      return mrl;
+    }
+    if (url.protocol === 'blob:' || url.protocol === 'data:') {
+      const r = await fetch(src);
+      if (!r.ok) throw new Error(`${url.protocol} URL: HTTP ${r.status}`);
+      return toMrl(await r.blob());
+    }
+    throw new Error(`unsupported URL scheme "${url.protocol}": pass an http(s), blob: or data: URL, or a File/Blob/bytes`);
+  }
+  const dir = `/mnt/${++mountSeq}`;
+  FS.mkdirTree(dir);
+  let name;
+  if (Array.isArray(src)) {
+    // Files that refer to each other by name (idx + sub, cue + bin, a
+    // playlist and its entries) share one directory; the first is opened.
+    src = src.map((f, k) => (f instanceof File ? safeFile(f, `part${k}`) : f));
+    const files = src.filter((f) => f instanceof File);
+    const blobs = src.filter((f) => !(f instanceof File)).map((b, k) => ({ name: safeName(b.name, `part${k}`), data: b }));
+    FS.mount(engine.Module.WORKERFS, { files, blobs }, dir);
+    // The files of a VIDEO_TS folder are a disc: open the folder with
+    // dvdnav (menus, titles) rather than one of its files.
+    if (src.some((f) => /^video_ts\.ifo$/i.test(f.name ?? ''))) {
+      const mrl = `dvd://${dir}`;
+      mounts.set(mrl, { dir, kind: 'workerfs' });
+      return mrl;
+    }
+    name = safeName(src[0].name, 'part0');
+    mounts.set(`file://${dir}/${encodeURIComponent(name)}`, { dir, kind: 'workerfs' });
+  } else if (src instanceof Blob) {
+    name = safeName(src.name, 'media');
+    FS.mount(engine.Module.WORKERFS,
+      src instanceof File ? { files: [safeFile(src, name)] } : { blobs: [{ name, data: src }] }, dir);
+    mounts.set(`file://${dir}/${encodeURIComponent(name)}`, { dir, kind: 'workerfs' });
+  } else {
+    name = safeName(src.name, 'media');
+    FS.writeFile(`${dir}/${name}`, new Uint8Array(src.data));
+    mounts.set(`file://${dir}/${encodeURIComponent(name)}`, { dir, kind: 'memfs', path: `${dir}/${name}` });
+  }
+  return `file://${dir}/${encodeURIComponent(name)}`;
+}
+
+function release(mrl) {
+  const m = mounts.get(mrl);
+  if (!m) return;
+  mounts.delete(mrl);
+  try {
+    if (m.kind === 'workerfs') FS.unmount(m.dir);
+    else FS.unlink(m.path);
+    FS.rmdir(m.dir);
+  } catch { /* still in use by a player; left for the next run */ }
+}
+
+const methods = {
+  async init({ threads, wasmUrl, fonts = [], soundfont, moduleUrl }) {
+    // Another build of the engine (e.g. libvlc-sout.js, the transcoding
+    // variant) is loaded from a URL, so bundlers do not have to know about it.
+    const factory = moduleUrl ? (await import(/* @vite-ignore */ moduleUrl)).default : createDefaultModule;
+    // Where the engine script lives, for its pthread Workers (see engine.js).
+    const engineUrl = moduleUrl ?? new URL('../wasm/libvlc.js', import.meta.url).href;
+    const crossOrigin = new URL(engineUrl, self.location.href).origin !== self.location.origin;
+    // Subtitles need a font file (there is no fontconfig and no system font
+    // directory in wasm) and MIDI a SoundFont. http(s) ones become lazy files,
+    // downloaded the first time VLC reads them: a page that never shows a
+    // subtitle never fetches the 600 KB font. blob:/data: ones are read now.
+    const lazy = (u) => /^https?:/.test(new URL(u, self.location.href).protocol);
+    const nameOf = (u, fallback) => {
+      let n = new URL(u, self.location.href).pathname.split('/').pop();
+      try { n = decodeURIComponent(n); } catch { /* keep it raw */ }
+      return safeName(n, fallback);
+    };
+    const bytesOf = async (u, what) => {
+      const r = await fetch(u);
+      if (!r.ok) throw new Error(`${what} ${u}: HTTP ${r.status}`);
+      return new Uint8Array(await r.arrayBuffer());
+    };
+    const sfData = soundfont && !lazy(soundfont) ? bytesOf(soundfont, 'soundfont') : null;
+    const fontData = Promise.all(fonts.filter((u) => !lazy(u)).map(async (u) => [nameOf(u, 'font.ttf'), await bytesOf(u, 'font')]));
+    engine = await createEngine(factory, {
+      threads,
+      locateFile: wasmUrl ? (p) => (p.endsWith('.wasm') ? wasmUrl : p) : undefined,
+      // An engine loaded by URL may have been renamed by a bundler
+      // (libvlc-sout-<hash>.js), so its threads must start from that URL,
+      // not from the name Emscripten compiled in.
+      mainScriptUrlOrBlob: crossOrigin
+        ? new Blob([`import ${JSON.stringify(engineUrl)};`], { type: 'text/javascript' })
+        : moduleUrl,
+      onEvent,
+      printErr: (s) => post({ type: 'event', player: 0, event: EVENT.LOG, a: 3, b: 0, str: s }),
+    });
+    FS = engine.Module.FS;
+    FS.mkdir('/fonts');
+    FS.mkdir('/recordings');
+    FS.mkdir('/out');
+    const installed = [];
+    for (const u of fonts) {
+      if (!lazy(u)) continue;
+      const name = nameOf(u, 'font.ttf');
+      FS.createLazyFile('/fonts', name, new URL(u, self.location.href).href, true, false);
+      installed.push(`/fonts/${name}`);
+    }
+    for (const [name, bytes] of await fontData) {
+      FS.writeFile(`/fonts/${name}`, bytes);
+      installed.push(`/fonts/${name}`);
+    }
+    const { value: version } = await engine.call('version', {}, 'json');
+    let soundfontPath = null;
+    if (soundfont) {
+      FS.mkdir('/soundfonts');
+      soundfontPath = '/soundfonts/default.sf2';
+      if (sfData) FS.writeFile(soundfontPath, await sfData);
+      else FS.createLazyFile('/soundfonts', 'default.sf2', new URL(soundfont, self.location.href).href, true, false);
+    }
+    return { version, layout: engine.layout, fonts: installed, soundfont: soundfontPath };
+  },
+
+  async instance({ args, logLevel }) {
+    const { i } = await engine.call('instance_new', { s: [args.join('\n')] });
+    if (!i) throw new Error('libvlc_new() failed; check the log for a bad option');
+    await engine.call('set_log_level', { i: [i, logLevel] });
+    return i;
+  },
+
+  memory() {
+    return engine.Module.wasmMemory.buffer;
+  },
+
+  mount({ source }) { return toMrl(source); },
+
+  dispose() { engine?.dispose(); },
+
+  /** Hands a file VLC wrote (a recording) to the page and deletes it here. */
+  takeFile({ path }) {
+    const data = FS.readFile(path);
+    FS.unlink(path);
+    return { name: path.split('/').pop(), data };
+  },
+  unmount({ mrl }) { release(mrl); },
+
+  // Every remaining method is a bridge call: {name, i, d, s, ret}.
+  call({ name, i, d, s, ret }) { return engine.call(name, { i, d, s }, ret); },
+};
+
+self.onmessage = async (e) => {
+  const { id, method, args } = e.data;
+  try {
+    if (!Object.hasOwn(methods, method)) throw new Error(`unknown method ${method}`);
+    const result = await methods[method](args ?? {});
+    post({ type: 'result', id, result });
+  } catch (err) {
+    post({ type: 'result', id, error: err?.message ?? String(err) });
+  }
+};

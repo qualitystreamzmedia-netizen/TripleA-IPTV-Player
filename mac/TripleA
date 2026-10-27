@@ -1,0 +1,49 @@
+#!/bin/bash
+APP="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$APP/Contents/Resources/app"
+cd "$ROOT" || exit 1
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
+
+osascript -e 'display dialog "TripleA will download its pieces the first time. This needs the internet once." buttons {"Continue"} default button 1 with title "TripleA IPTV Player"' >/dev/null || exit 0
+
+case "$(uname -m)" in
+  arm64) NODE_ARCH=arm64 ;;
+  x86_64) NODE_ARCH=x64 ;;
+  *)
+    osascript -e 'display alert "This Mac is not supported" message "TripleA runs on Apple silicon and Intel Macs."'
+    exit 1
+    ;;
+esac
+
+NODE_HOME="$ROOT/vendor/node/mac"
+if [ ! -x "$NODE_HOME/bin/node" ]; then
+  mkdir -p "$ROOT/vendor/node"
+  curl -fL --retry 3 -o "$ROOT/vendor/node/node.tar.gz" "https://nodejs.org/dist/v24.22.0/node-v24.22.0-darwin-${NODE_ARCH}.tar.gz" || {
+    osascript -e 'display alert "Could not download Node.js" message "Check the internet connection and open TripleA again."'
+    exit 1
+  }
+  mkdir -p "$NODE_HOME"
+  tar -xzf "$ROOT/vendor/node/node.tar.gz" -C "$NODE_HOME" --strip-components=1 || {
+    osascript -e 'display alert "Could not unpack Node.js"'
+    exit 1
+  }
+fi
+export PATH="$NODE_HOME/bin:$PATH"
+
+if [ ! -x "$ROOT/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron" ] \
+  || [ ! -f "$ROOT/node_modules/libvlc-wasm/src/index.js" ] \
+  || [ ! -f "$ROOT/node_modules/hls.js/package.json" ] \
+  || [ ! -f "$ROOT/node_modules/vite/bin/vite.js" ]; then
+  npm install || {
+    osascript -e 'display alert "TripleA did not install" message "Open the app again. If it still fails, the download was interrupted."'
+    exit 1
+  }
+  npm install-scripts approve electron >/dev/null 2>&1 || true
+  npm rebuild electron >/dev/null 2>&1 || true
+fi
+
+ELECTRON="$ROOT/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+xattr -dr com.apple.quarantine "$ROOT/node_modules/electron" 2>/dev/null || true
+nohup "$ELECTRON" "$ROOT" >/tmp/triplea-iptv.log 2>&1 &
+disown
+exit 0

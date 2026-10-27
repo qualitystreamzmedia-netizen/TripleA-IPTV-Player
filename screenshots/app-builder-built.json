@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "TripleA IPTV Player",
+      "hasCanvas": false,
+      "bodyTextLen": 1430,
+      "bodyTextHash": "ead3dd02fbcfce08b3d103386e584ba36c38b00805e9ba1c483d0d677bb2a044",
+      "bodyTextPrefix": "TripleA IPTV Player Wed, Oct 14, 7:01 PM All Favorites (0) Film ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "TripleA IPTV Player",
+      "hasCanvas": false,
+      "bodyTextLen": 367,
+      "bodyTextHash": "c2cd76e7b14985cdd388592dab055726818ac212228cddcc1f09b73e4868bca4",
+      "bodyTextPrefix": "TripleA IPTV Player All Favorites Film Music News Science Sport ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}
